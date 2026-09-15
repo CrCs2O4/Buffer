@@ -82,9 +82,11 @@ class StatusBarController {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
+        #if !LOCAL_PATCHED_BUILD
         let updateItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: "")
         updateItem.target = self
         menu.addItem(updateItem)
+        #endif
 
         menu.addItem(NSMenuItem.separator())
         

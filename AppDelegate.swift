@@ -53,11 +53,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.hotkeyManager?.reregister()
         }
 
+        #if !LOCAL_PATCHED_BUILD
         UpdateService.shared.checkIfJustUpdated()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             UpdateService.shared.checkOnLaunchIfNeeded()
         }
+        #endif
     }
     
     func applicationWillTerminate(_ notification: Notification) {

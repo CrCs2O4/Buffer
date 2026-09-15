@@ -103,6 +103,11 @@ struct SettingsView: View {
                         .toggleStyle(.switch)
                 }
                 
+                #if LOCAL_PATCHED_BUILD
+                Text("Updates are managed by the local patched build.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                #else
                 HStack {
                     Text("Include Pre-release Updates")
                         .font(.system(size: 13, weight: .medium))
@@ -117,6 +122,7 @@ struct SettingsView: View {
                         }
                         .toggleStyle(.switch)
                 }
+                #endif
 
                 HStack {
                     Text("Hide Menu Bar Icon")
@@ -125,6 +131,43 @@ struct SettingsView: View {
                     Toggle("", isOn: $settings.hideStatusBar)
                         .labelsHidden()
                         .onChange(of: settings.hideStatusBar) { _ in
+                            settings.save()
+                        }
+                        .toggleStyle(.switch)
+                }
+
+                // History Filtering Section
+                Divider()
+                    .padding(.vertical, 4)
+
+                Text("History Filtering")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    Text("Ignore entries shorter than")
+                        .font(.system(size: 13, weight: .medium))
+                    Spacer()
+                    Stepper(
+                        settings.minTextLength == 1
+                            ? "1 character"
+                            : "\(settings.minTextLength) characters",
+                        value: $settings.minTextLength,
+                        in: 1...20
+                    )
+                    .font(.system(size: 12))
+                    .onChange(of: settings.minTextLength) { _ in
+                        settings.save()
+                    }
+                }
+
+                HStack {
+                    Text("Deduplicate History")
+                        .font(.system(size: 13, weight: .medium))
+                    Spacer()
+                    Toggle("", isOn: $settings.deduplicateHistory)
+                        .labelsHidden()
+                        .onChange(of: settings.deduplicateHistory) { _ in
                             settings.save()
                         }
                         .toggleStyle(.switch)
@@ -326,6 +369,8 @@ class SettingsViewModel: ObservableObject {
     @Published var historyLimit: HistoryLimit
     @Published var includePrereleases: Bool
     @Published var hideStatusBar: Bool
+    @Published var minTextLength: Int
+    @Published var deduplicateHistory: Bool
     
     private let defaults = UserDefaults.standard
     private let hotkeyModifiersKey = "hotkeyModifiers"
@@ -355,6 +400,10 @@ class SettingsViewModel: ObservableObject {
 
         // Load hide status bar
         self.hideStatusBar = defaults.bool(forKey: "hideStatusBar")
+
+        // Load clipboard history filtering settings
+        self.minTextLength = SettingsManager.shared.minTextLength
+        self.deduplicateHistory = SettingsManager.shared.deduplicateHistory
     }
     
     func save() {
@@ -369,6 +418,8 @@ class SettingsViewModel: ObservableObject {
         SettingsManager.shared.historyLimit = historyLimit
         SettingsManager.shared.includePrereleases = includePrereleases
         SettingsManager.shared.hideStatusBar = hideStatusBar
+        SettingsManager.shared.minTextLength = minTextLength
+        SettingsManager.shared.deduplicateHistory = deduplicateHistory
         SettingsManager.shared.save()
 
         NotificationCenter.default.post(name: .bufferHotkeyChanged, object: nil)

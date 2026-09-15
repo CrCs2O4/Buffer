@@ -1,0 +1,83 @@
+name: Build local patched app
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Show toolchain
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          swift --version
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project Buffer.xcodeproj \
+            -scheme Buffer \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/BufferTests" \
+            CODE_SIGNING_ALLOWED=NO \
+            'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) LOCAL_PATCHED_BUILD'
+
+      - name: Build Apple Silicon app
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project Buffer.xcodeproj \
+            -scheme Buffer \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/BufferBuild" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) LOCAL_PATCHED_BUILD'
+
+      - name: Package ad-hoc-signed app
+        env:
+          PATCH_VERSION: 2.6.0-issue4.1
+          UPSTREAM_COMMIT: fa4f99cf4d8e711f51819365a27decd5109c352f
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/BufferBuild/Build/Products/Release/Buffer.app"
+          test -d "$app"
+
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $PATCH_VERSION" "$app/Contents/Info.plist"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          test "$(lipo -archs "$app/Contents/MacOS/Buffer")" = "arm64"
+
+          mkdir -p dist
+          ditto -ck --rsrc --sequesterRsrc --keepParent "$app" "dist/Buffer_Silicon_${PATCH_VERSION}.zip"
+          shasum -a 256 "dist/Buffer_Silicon_${PATCH_VERSION}.zip" > dist/SHA256SUMS
+          {
+            echo "patched_version=$PATCH_VERSION"
+            echo "upstream_tag=buffer-v2.6.0"
+            echo "upstream_commit=$UPSTREAM_COMMIT"
+            echo "source_commit=$GITHUB_SHA"
+            echo "architecture=arm64"
+            echo "signature=ad-hoc"
+            echo "notarized=false"
+          } > dist/BUILD-PROVENANCE.txt
+
+      - name: Upload local-use artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Buffer-2.6.0-issue4.1-Silicon
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
