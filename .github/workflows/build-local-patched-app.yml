@@ -63,7 +63,10 @@ jobs:
 
           mkdir -p dist
           ditto -ck --rsrc --sequesterRsrc --keepParent "$app" "dist/Buffer_Silicon_${PATCH_VERSION}.zip"
-          shasum -a 256 "dist/Buffer_Silicon_${PATCH_VERSION}.zip" > dist/SHA256SUMS
+          (
+            cd dist
+            shasum -a 256 "Buffer_Silicon_${PATCH_VERSION}.zip" > SHA256SUMS
+          )
           {
             echo "patched_version=$PATCH_VERSION"
             echo "upstream_tag=buffer-v2.6.0"
